@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leitor de Cadastros | T.U.C.U.V.O.R.I.</title>
+
+    <!-- FIREBASE BASE -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+    <!-- BIBLIOTECA GERAR PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        :root {
+            --vermelho: #760d0d;
+            --vermelho-escuro: #4d0707;
+            --dourado: #c69a3b;
+            --preto: #181818;
+            --cinza: #6d6d6d;
+            --cinza-claro: #f4f3f1;
+            --branco: #ffffff;
+            --borda: #dedbd5;
+            --perigo: #c0392b;
+            --sucesso: #27ae60;
+            --sombra: 0 10px 30px rgba(0, 0, 0, .08);
+            --raio: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            background: #f2f1ef;
+            color: var(--preto);
+            padding-bottom: 40px;
+        }
+
+        header {
+            background: linear-gradient(145deg, var(--vermelho-escuro), var(--vermelho));
+            color: white;
+            padding: 25px 20px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 22px;
+            margin-bottom: 5px;
+        }
+
+        header p {
+            font-size: 13px;
+            color: var(--cinza-claro);
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 20px auto;
+            padding: 0 15px;
+        }
+
+        .controles {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .busca {
+            flex: 1;
+            min-width: 250px;
+            padding: 12px 15px;
+            border: 1px solid var(--borda);
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .grid-cadastros {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+
+        .card-resumo {
+            background: white;
+            border-radius: var(--raio);
+            padding: 18px;
+            box-shadow: var(--sombra);
+            border-left: 5px solid var(--vermelho);
+            cursor: pointer;
+            transition: transform .2s, box-shadow .2s;
+            position: relative;
+        }
+
+        .card-resumo:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(0,0,0,.12);
+        }
+
+        .card-resumo h3 {
+            font-size: 16px;
+            color: var(--vermelho);
+            margin-bottom: 6px;
+        }
+
+        .card-resumo p {
+            font-size: 13px;
+            color: var(--cinza);
+            margin-bottom: 4px;
+        }
+
+        .badge-id {
+            display: inline-block;
+            background: #f5f1e6;
+            color: #73591d;
+            font-size: 11px;
+            padding: 3px 7px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .acoes-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .btn-excluir {
+            background: transparent;
+            border: none;
+            color: var(--perigo);
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 5px 8px;
+            border-radius: 4px;
+            transition: background .2s;
+        }
+
+        .btn-excluir:hover {
+            background: #fde8e8;
+        }
+
+        /* MODAL DETALHES */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 15px;
+        }
+
+        .modal.visivel {
+            display: flex;
+        }
+
+        .modal-conteudo {
+            background: white;
+            border-radius: var(--raio);
+            width: 100%;
+            max-width: 850px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 25px;
+            position: relative;
+        }
+
+        .fechar-modal {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #eee;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .secao-detalhe {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .secao-detalhe h4 {
+            color: var(--vermelho);
+            font-size: 14px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-left: 3px solid var(--vermelho);
+            padding-left: 8px;
+        }
+
+        .grid-detalhes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .item-detalhe {
+            font-size: 13px;
+        }
+
+        .item-detalhe strong {
+            display: block;
+            color: #555;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        /* FORMULÁRIO EDIÇÃO */
+        .campo-edicao {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .campo-edicao label {
+            font-size: 11px;
+            font-weight: bold;
+            color: #444;
+            text-transform: uppercase;
+        }
+
+        .campo-edicao input, .campo-edicao select, .campo-edicao textarea {
+            padding: 8px 10px;
+            border: 1px solid var(--borda);
+            border-radius: 6px;
+            font-size: 13px;
+            width: 100%;
+        }
+
+        .doc-link {
+            display: inline-block;
+            margin-top: 5px;
+            color: var(--vermelho);
+            text-decoration: underline;
+            font-size: 12px;
+        }
+
+        .modal-rodape {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .grupo-botoes {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn-acao {
+            border: none;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-pdf { background: #27ae60; color: white; }
+        .btn-imprimir { background: #34495e; color: white; }
+        .btn-editar { background: var(--dourado); color: white; }
+        .btn-salvar { background: var(--sucesso); color: white; }
+        .btn-cancelar { background: #95a5a6; color: white; }
+        .btn-excluir-modal { background: var(--perigo); color: white; }
+
+        .vazio {
+            text-align: center;
+            color: var(--cinza);
+            padding: 40px;
+            grid-column: 1 / -1;
+        }
+
+        .cabecalho-impressao {
+            display: none;
+            text-align: center;
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid var(--vermelho);
+        }
+
+        .cabecalho-impressao h2 { font-size: 18px; color: var(--vermelho); }
+        .cabecalho-impressao p { font-size: 12px; color: #666; }
+
+        @media print {
+            body { background: white !important; color: black !important; }
+            header, .container, .fechar-modal, .modal-rodape, .doc-link { display: none !important; }
+            .modal { position: static !important; display: block !important; background: transparent !important; padding: 0 !important; }
+            .modal-conteudo { max-height: none !important; overflow: visible !important; box-shadow: none !important; border: none !important; padding: 0 !important; width: 100% !important; }
+            .cabecalho-impressao { display: block !important; }
+            .secao-detalhe { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>Painel de Cadastros</h1>
+        <p>Templo de Umbanda Caboclo Ubirajara e Vovó Rita (T.U.C.U.V.O.R.I.)</p>
+    </header>
+
+    <div class="container">
+        <div class="controles">
+            <input type="text" id="busca" class="busca" placeholder="Buscar por nome, CPF ou número do cadastro..." oninput="filtrarCadastros()">
+        </div>
+
+        <div id="gridCadastros" class="grid-cadastros">
+            <div class="vazio">Carregando cadastros...</div>
+        </div>
+    </div>
+
+    <!-- MODAL DE DETALHES -->
+    <div id="modalDetalhes" class="modal">
+        <div class="modal-conteudo" id="areaImpressaoPDF">
+            <button class="fechar-modal" onclick="fecharModal()">✕</button>
+            <div id="conteudoDetalhes"></div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCLfCY7VCgtW92f3Dlqst5yp6BTNqw5UQ",
+            authDomain: "calendario-tucuvori.firebaseapp.com",
+            databaseURL: "https://calendario-tucuvori-default-rtdb.firebaseio.com",
+            projectId: "calendario-tucuvori",
+            storageBucket: "calendario-tucuvori.firebasestorage.app",
+            messagingSenderId: "364406314929",
+            appId: "1:364406314929:web:ec7e7709bec677690b4f90"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        let todosCadastros = {};
+        let cadastroSelecionadoId = null;
+        let modoEdicao = false;
+
+        database.ref("cadastrosEntrada").on("value", snapshot => {
+            todosCadastros = snapshot.val() || {};
+            renderizarCadastros(todosCadastros);
+        });
+
+        function renderizarCadastros(dados) {
+            const grid = document.getElementById("gridCadastros");
+            grid.innerHTML = "";
+
+            const ids = Object.keys(dados);
+
+            if (ids.length === 0) {
+                grid.innerHTML = `<div class="vazio">Nenhum cadastro encontrado.</div>`;
+                return;
+            }
+
+            ids.reverse().forEach(id => {
+                const item = dados[id];
+                const info = item.cadastro || {};
+                const docs = item.documentos || {};
+
+                const card = document.createElement("div");
+                card.className = "card-resumo";
+                card.onclick = (e) => {
+                    if (!e.target.classList.contains('btn-excluir')) {
+                        abrirModal(id);
+                    }
+                };
+
+                card.innerHTML = `
+                    <span class="badge-id">${item.numeroCadastro || 'S/N'}</span>
+                    <h3>${info.nomeCompleto || 'Nome não informado'}</h3>
+                    <p><strong>WhatsApp:</strong> ${info.telefoneWhatsapp || '-'}</p>
+                    <p><strong>CPF:</strong> ${docs.cpf || '-'}</p>
+                    <p><strong>Entrada na TUCUVORI:</strong> ${formatarData(info.dataEntradaTucuvori)}</p>
+                    
+                    <div class="acoes-card">
+                        <span style="font-size: 11px; color: #888;">Clique para abrir</span>
+                        <button class="btn-excluir" onclick="excluirCadastro('${id}', event)">🗑️ Excluir</button>
+                    </div>
+                `;
+
+                grid.appendChild(card);
+            });
+        }
+
+        function filtrarCadastros() {
+            const termo = document.getElementById("busca").value.toLowerCase();
+            const filtrados = {};
+
+            Object.keys(todosCadastros).forEach(id => {
+                const item = todosCadastros[id];
+                const info = item.cadastro || {};
+                const docs = item.documentos || {};
+
+                const nome = (info.nomeCompleto || "").toLowerCase();
+                const cpf = (docs.cpf || "").toLowerCase();
+                const num = (item.numeroCadastro || "").toLowerCase();
+
+                if (nome.includes(termo) || cpf.includes(termo) || num.includes(termo)) {
+                    filtrados[id] = item;
+                }
+            });
+
+            renderizarCadastros(filtrados);
+        }
+
+        function abrirModal(id, editar = false) {
+            cadastroSelecionadoId = id;
+            modoEdicao = editar;
+            const item = todosCadastros[id];
+            if (!item) return;
+
+            const c = item.cadastro || {};
+            const e = item.emergencia || {};
+            const d = item.documentos || {};
+            const end = d.endereco || {};
+            const s = item.saude || {};
+            const esp = item.espiritual || {};
+            const ent = esp.entidades || {};
+            const comp = item.complementar || {};
+
+            let html = '';
+
+            if (modoEdicao) {
+                html = `
+                    <form id="formEdicao" onsubmit="salvarEdicao(event, '${id}')">
+                        <span class="badge-id">${item.numeroCadastro || 'S/N'}</span>
+                        <h2 style="color: var(--vermelho); margin-bottom: 15px;">Editando Cadastro Completo</h2>
+
+                        <div class="secao-detalhe">
+                            <h4>1. Dados Pessoais</h4>
+                            <div class="grid-detalhes">
+                                <div class="campo-edicao"><label>Nome Completo</label><input type="text" id="edit_nomeCompleto" value="${c.nomeCompleto || ''}"></div>
+                                <div class="campo-edicao"><label>Data Nascimento</label><input type="date" id="edit_dataNascimento" value="${c.dataNascimento || ''}"></div>
+                                <div class="campo-edicao"><label>Idade</label><input type="text" id="edit_idade" value="${c.idade || ''}"></div>
+                                <div class="campo-edicao"><label>Faixa Etária</label><input type="text" id="edit_faixaEtaria" value="${c.faixaEtaria || ''}"></div>
+                                <div class="campo-edicao"><label>Entrou na TUCUVORI</label><input type="date" id="edit_dataEntradaTucuvori" value="${c.dataEntradaTucuvori || ''}"></div>
+                                <div class="campo-edicao"><label>Tempo de Casa</label><input type="text" id="edit_tempoTucuvori" value="${c.tempoTucuvori || ''}"></div>
+                                <div class="campo-edicao"><label>Sexo Biológico</label><input type="text" id="edit_sexoBiologico" value="${c.sexoBiologico || ''}"></div>
+                                <div class="campo-edicao"><label>Identidade Gênero</label><input type="text" id="edit_identidadeGenero" value="${c.identidadeGenero || ''}"></div>
+                                <div class="campo-edicao"><label>Orientação Sexual</label><input type="text" id="edit_orientacaoSexual" value="${c.orientacaoSexual || ''}"></div>
+                                <div class="campo-edicao"><label>WhatsApp</label><input type="text" id="edit_telefoneWhatsapp" value="${c.telefoneWhatsapp || ''}"></div>
+                                <div class="campo-edicao"><label>Tel. Contato</label><input type="text" id="edit_telefoneContato" value="${c.telefoneContato || ''}"></div>
+                                <div class="campo-edicao"><label>E-mail</label><input type="email" id="edit_email" value="${c.email || ''}"></div>
+                            </div>
+                        </div>
+
+                        <div class="secao-detalhe">
+                            <h4>Contato de Emergência</h4>
+                            <div class="grid-detalhes">
+                                <div class="campo-edicao"><label>Nome Contato</label><input type="text" id="edit_emergenciaNome" value="${e.nome || ''}"></div>
+                                <div class="campo-edicao"><label>Parentesco</label><input type="text" id="edit_emergenciaParentesco" value="${e.parentesco || ''}"></div>
+                                <div class="campo-edicao"><label>Telefone</label><input type="text" id="edit_emergenciaTelefone" value="${e.telefone || ''}"></div>
+                            </div>
+                        </div>
+
+                        <div class="secao-detalhe">
+                            <h4>Documentos & Endereço</h4>
+                            <div class="grid-detalhes">
+                                <div class="campo-edicao"><label>RG</label><input type="text" id="edit_rg" value="${d.rg || ''}"></div>
+                                <div class="campo-edicao"><label>CPF</label><input type="text" id="edit_cpf" value="${d.cpf || ''}"></div>
+                                <div class="campo-edicao"><label>Rua</label><input type="text" id="edit_rua" value="${end.rua || ''}"></div>
+                                <div class="campo-edicao"><label>Número</label><input type="text" id="edit_numero" value="${end.numero || ''}"></div>
+                                <div class="campo-edicao"><label>Bairro</label><input type="text" id="edit_bairro" value="${end.bairro || ''}"></div>
+                                <div class="campo-edicao"><label>Cidade</label><input type="text" id="edit_cidade" value="${end.cidade || ''}"></div>
+                                <div class="campo-edicao"><label>UF</label><input type="text" id="edit_uf" value="${end.uf || ''}"></div>
+                                <div class="campo-edicao"><label>CEP</label><input type="text" id="edit_cep" value="${end.cep || ''}"></div>
+                            </div>
+                        </div>
+
+                        <div class="secao-detalhe">
+                            <h4>2. Saúde (Campos Detalhados)</h4>
+                            <div class="grid-detalhes">
+                                <div class="campo-edicao"><label>Gestante?</label><input type="text" id="edit_gestante" value="${s.gestante || ''}"></div>
+                                <div class="campo-edicao"><label>Tempo Gestação</label><input type="text" id="edit_gestanteTempo" value="${s.gestanteTempo || ''}"></div>
+                                <div class="campo-edicao"><label>Fuma?</label><input type="text" id="edit_fuma" value="${s.fuma || ''}"></div>
+                                <div class="campo-edicao"><label>Tempo Fuma</label><input type="text" id="edit_fumaTempo" value="${s.fumaTempo || ''}"></div>
+                                <div class="campo-edicao"><label>Bebe?</label><input type="text" id="edit_bebe" value="${s.bebe || ''}"></div>
+                                <div class="campo-edicao"><label>Tempo Bebe</label><input type="text" id="edit_bebeTempo" value="${s.bebeTempo || ''}"></div>
+                                <div class="campo-edicao"><label>Vícios?</label><input type="text" id="edit_temVicios" value="${s.temVicios || ''}"></div>
+                                <div class="campo-edicao"><label>Info Vícios</label><input type="text" id="edit_viciosInfo" value="${s.viciosInfo || ''}"></div>
+
+                                <div class="campo-edicao"><label>Hipertensão?</label><input type="text" id="edit_hipertensao" value="${s.hipertensao || ''}"></div>
+                                <div class="campo-edicao"><label>Info Hipertensão</label><input type="text" id="edit_hipertensaoInfo" value="${s.hipertensaoInfo || ''}"></div>
+                                <div class="campo-edicao"><label>Diabetes?</label><input type="text" id="edit_diabetes" value="${s.diabetes || ''}"></div>
+                                <div class="campo-edicao"><label>Info Diabetes</label><input type="text" id="edit_diabetesInfo" value="${s.diabetesInfo || ''}"></div>
+
+                                <div class="campo-edicao"><label>Teve AVC?</label><input type="text" id="edit_avc" value="${s.avc || ''}"></div>
+                                <div class="campo-edicao"><label>Quando AVC?</label><input type="text" id="edit_avcQuando" value="${s.avcQuando || ''}"></div>
+                                <div class="campo-edicao"><label>Infarto?</label><input type="text" id="edit_infarto" value="${s.infarto || ''}"></div>
+                                <div class="campo-edicao"><label>Quando Infarto?</label><input type="text" id="edit_infartoQuando" value="${s.infartoQuando || ''}"></div>
+
+                                <div class="campo-edicao"><label>Doença Cardíaca</label><input type="text" id="edit_doencaCardiaca" value="${s.doencaCardiaca || ''}"></div>
+                                <div class="campo-edicao"><label>Qual Cardíaca?</label><input type="text" id="edit_cardiacaQual" value="${s.cardiacaQual || ''}"></div>
+                                <div class="campo-edicao"><label>Rins?</label><input type="text" id="edit_rins" value="${s.rins || ''}"></div>
+                                <div class="campo-edicao"><label>Qual Rins?</label><input type="text" id="edit_rinsQual" value="${s.rinsQual || ''}"></div>
+
+                                <div class="campo-edicao"><label>Respiratório?</label><input type="text" id="edit_respiratorio" value="${s.respiratorio || ''}"></div>
+                                <div class="campo-edicao"><label>Qual Respiratório?</label><input type="text" id="edit_respiratorioQual" value="${s.respiratorioQual || ''}"></div>
+                                <div class="campo-edicao"><label>Tuberculose?</label><input type="text" id="edit_tuberculose" value="${s.tuberculose || ''}"></div>
+                                <div class="campo-edicao"><label>Quando Tuberculose?</label><input type="text" id="edit_tuberculoseQuando" value="${s.tuberculoseQuando || ''}"></div>
+
+                                <div class="campo-edicao"><label>Câncer?</label><input type="text" id="edit_cancer" value="${s.cancer || ''}"></div>
+                                <div class="campo-edicao"><label>Quando Câncer?</label><input type="text" id="edit_cancerQuando" value="${s.cancerQuando || ''}"></div>
+                                <div class="campo-edicao"><label>Internação 12m?</label><input type="text" id="edit_internacao" value="${s.internacao || ''}"></div>
+                                <div class="campo-edicao"><label>Motivo Internação</label><input type="text" id="edit_internacaoMotivo" value="${s.internacaoMotivo || ''}"></div>
+
+                                <div class="campo-edicao"><label>Psiquiatra?</label><input type="text" id="edit_psiquiatra" value="${s.psiquiatra || ''}"></div>
+                                <div class="campo-edicao"><label>Info Psiquiatra</label><input type="text" id="edit_psiquiatraInfo" value="${s.psiquiatraInfo || ''}"></div>
+                                <div class="campo-edicao"><label>Ansiedade?</label><input type="text" id="edit_ansiedade" value="${s.ansiedade || ''}"></div>
+                                <div class="campo-edicao"><label>Depressão?</label><input type="text" id="edit_depressao" value="${s.depressao || ''}"></div>
+
+                                <div class="campo-edicao"><label>Tipo Sanguíneo</label><input type="text" id="edit_tipoSanguineo" value="${s.tipoSanguineo || ''}"></div>
+                                <div class="campo-edicao"><label>Alergia a Ervas?</label><input type="text" id="edit_alergiaErva" value="${s.alergiaErva || ''}"></div>
+                                <div class="campo-edicao"><label>Qual Erva?</label><input type="text" id="edit_alergiaErvaQual" value="${s.alergiaErvaQual || ''}"></div>
+                                <div class="campo-edicao"><label>Alergia Alimentar?</label><input type="text" id="edit_alergiaAlimentar" value="${s.alergiaAlimentar || ''}"></div>
+                                <div class="campo-edicao"><label>Qual Alimento?</label><input type="text" id="edit_alergiaAlimentarQual" value="${s.alergiaAlimentarQual || ''}"></div>
+
+                                <div class="campo-edicao"><label>Medicamentos Contínuos</label><input type="text" id="edit_medicamentosContinuosTexto" value="${s.medicamentosContinuosTexto || ''}"></div>
+                                <div class="campo-edicao"><label>Doença Crônica</label><input type="text" id="edit_doencaCronicaTexto" value="${s.doencaCronicaTexto || ''}"></div>
+                                <div class="campo-edicao"><label>Cirurgias/Tratamentos</label><input type="text" id="edit_cirurgiasTratamentosTexto" value="${s.cirurgiasTratamentosTexto || ''}"></div>
+                                <div class="campo-edicao"><label>Acompanhamento Psic./Psiq.</label><input type="text" id="edit_acompanhamentoPsicologicoPsiquiatricoTexto" value="${s.acompanhamentoPsicologicoPsiquiatricoTexto || ''}"></div>
+                            </div>
+                            
+                            <div class="campo-edicao" style="margin-top:10px;"><label>Info Complementar Saúde</label><textarea id="edit_informacoesComplementares" rows="2">${s.informacoesComplementares || ''}</textarea></div>
+                            <div class="campo-edicao" style="margin-top:10px;"><label>Obs. Gerais Saúde</label><textarea id="edit_observacoesGeraisSaude" rows="2">${s.observacoesGeraisSaude || ''}</textarea></div>
+                        </div>
+
+                        <div class="secao-detalhe">
+                            <h4>3. Informações Espirituais</h4>
+                            <div class="grid-detalhes">
+                                <div class="campo-edicao"><label>Batizado Umbanda?</label><input type="text" id="edit_batizadoUmbanda" value="${esp.batizadoUmbanda || ''}"></div>
+                                <div class="campo-edicao"><label>Quando Batizou?</label><input type="text" id="edit_batizadoUmbandaQuando" value="${esp.batizadoUmbandaQuando || ''}"></div>
+                                <div class="campo-edicao"><label>Iniciado Outra Religião?</label><input type="text" id="edit_outraReligiao" value="${esp.outraReligiao || ''}"></div>
+                                <div class="campo-edicao"><label>Qual Religião?</label><input type="text" id="edit_outraReligiaoQual" value="${esp.outraReligiaoQual || ''}"></div>
+                                <div class="campo-edicao"><label>Outros Terreiros?</label><input type="text" id="edit_outrosTerreiros" value="${esp.outrosTerreiros || ''}"></div>
+                                <div class="campo-edicao"><label>Info Terreiros</label><input type="text" id="edit_outrosTerreirosInfo" value="${esp.outrosTerreirosInfo || ''}"></div>
+                                <div class="campo-edicao"><label>Pais de Cabeça?</label><input type="text" id="edit_paisCabeca" value="${esp.paisCabeca || ''}"></div>
+                                <div class="campo-edicao"><label>Quais Pais de Cabeça?</label><input type="text" id="edit_paisCabecaQuem" value="${esp.paisCabecaQuem || ''}"></div>
+                            </div>
+                            <div class="campo-edicao" style="margin-top:10px;"><label>Tipo Mediunidade</label><input type="text" id="edit_tipoMediunidade" value="${esp.tipoMediunidade || ''}"></div>
+                            
+                            <h5 style="margin-top:15px; margin-bottom:8px; color: var(--dourado);">Entidades:</h5>
+                            <div class="grid-detalhes">
+                                <div class="campo-edicao"><label>Caboclo</label><input type="text" id="edit_cabocloNome" value="${ent.cabocloNome || ent.caboclo || ''}"></div>
+                                <div class="campo-edicao"><label>Preto Velho</label><input type="text" id="edit_pretoVelhoNome" value="${ent.pretoVelhoNome || ent.pretoVelho || ''}"></div>
+                                <div class="campo-edicao"><label>Erê</label><input type="text" id="edit_ereNome" value="${ent.ereNome || ent.ere || ''}"></div>
+                                <div class="campo-edicao"><label>Marinheiro</label><input type="text" id="edit_marinheiroNome" value="${ent.marinheiroNome || ent.marinheiro || ''}"></div>
+                                <div class="campo-edicao"><label>Baiano</label><input type="text" id="edit_baianoNome" value="${ent.baianoNome || ent.baiano || ''}"></div>
+                                <div class="campo-edicao"><label>Boiadeiro</label><input type="text" id="edit_boiadeiroNome" value="${ent.boiadeiroNome || ent.boiadeiro || ''}"></div>
+                                <div class="campo-edicao"><label>Cigano</label><input type="text" id="edit_ciganoNome" value="${ent.ciganoNome || ent.cigano || ''}"></div>
+                                <div class="campo-edicao"><label>Malandro</label><input type="text" id="edit_malandroNome" value="${ent.malandroNome || ent.malandro || ''}"></div>
+                                <div class="campo-edicao"><label>Exu</label><input type="text" id="edit_exuNome" value="${ent.exuNome || ent.exu || ''}"></div>
+                                <div class="campo-edicao"><label>Pombagira</label><input type="text" id="edit_pombagiraNome" value="${ent.pombagiraNome || ent.pombagira || ''}"></div>
+                                <div class="campo-edicao"><label>Exu Mirim</label><input type="text" id="edit_exuMirimNome" value="${ent.exuMirimNome || ent.exuMirim || ''}"></div>
+                            </div>
+                        </div>
+
+                        <div class="secao-detalhe">
+                            <h4>4. Observações Complementares</h4>
+                            <div class="campo-edicao" style="margin-bottom:8px;"><label>Info Mãe de Santo</label><textarea id="edit_informacaoMaeSanto" rows="2">${comp.informacaoMaeSanto || ''}</textarea></div>
+                            <div class="campo-edicao"><label>Info Adicional</label><textarea id="edit_informacaoAdicional" rows="2">${comp.informacaoAdicional || ''}</textarea></div>
+                        </div>
+
+                        <div class="modal-rodape">
+                            <div class="grupo-botoes">
+                                <button type="submit" class="btn-acao btn-salvar">💾 Salvar Alterações</button>
+                                <button type="button" class="btn-acao btn-cancelar" onclick="abrirModal('${id}', false)">Cancelar</button>
+                            </div>
+                        </div>
+                    </form>
+                `;
+            } else {
+                html = `
+                    <div class="cabecalho-impressao" id="cabecalhoPdf">
+                        <h2>Templo de Umbanda Caboclo Ubirajara e Vovó Rita</h2>
+                        <p>Ficha de Cadastro do Filho de Fé - ${item.numeroCadastro || 'S/N'}</p>
+                    </div>
+
+                    <span class="badge-id">${item.numeroCadastro || 'S/N'}</span>
+                    <h2 style="color: var(--vermelho); margin-bottom: 15px;">${c.nomeCompleto || 'Sem Nome'}</h2>
+
+                    <div class="secao-detalhe">
+                        <h4>1. Dados Pessoais</h4>
+                        <div class="grid-detalhes">
+                            <div class="item-detalhe"><strong>Nascimento</strong>${formatarData(c.dataNascimento)} (${c.idade || '-'})</div>
+                            <div class="item-detalhe"><strong>Faixa Etária</strong>${c.faixaEtaria || '-'}</div>
+                            <div class="item-detalhe"><strong>Entrou na TUCUVORI</strong>${formatarData(c.dataEntradaTucuvori)} (${c.tempoTucuvori || '-'})</div>
+                            <div class="item-detalhe"><strong>Sexo Biológico</strong>${c.sexoBiologico || '-'}</div>
+                            <div class="item-detalhe"><strong>Identidade Gênero</strong>${c.identidadeGenero || '-'}</div>
+                            <div class="item-detalhe"><strong>Orientação Sexual</strong>${c.orientacaoSexual || '-'}</div>
+                            <div class="item-detalhe"><strong>WhatsApp</strong>${c.telefoneWhatsapp || '-'}</div>
+                            <div class="item-detalhe"><strong>Tel. Contato</strong>${c.telefoneContato || '-'}</div>
+                            <div class="item-detalhe"><strong>E-mail</strong>${c.email || '-'}</div>
+                        </div>
+                    </div>
+
+                    <div class="secao-detalhe">
+                        <h4>Contato de Emergência</h4>
+                        <div class="grid-detalhes">
+                            <div class="item-detalhe"><strong>Nome</strong>${e.nome || '-'}</div>
+                            <div class="item-detalhe"><strong>Parentesco</strong>${e.parentesco || '-'}</div>
+                            <div class="item-detalhe"><strong>Telefone</strong>${e.telefone || '-'}</div>
+                        </div>
+                    </div>
+
+                    <div class="secao-detalhe">
+                        <h4>Documentos & Endereço</h4>
+                        <div class="grid-detalhes">
+                            <div class="item-detalhe"><strong>RG</strong>${d.rg || '-'}</div>
+                            <div class="item-detalhe"><strong>CPF</strong>${d.cpf || '-'}</div>
+                            <div class="item-detalhe"><strong>Endereço</strong>${end.rua || ''}, ${end.numero || ''} - ${end.bairro || ''}, ${end.cidade || ''}/${end.uf || ''} (CEP: ${end.cep || ''})</div>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            ${d.rgFrente ? `<a href="${d.rgFrente}" target="_blank" class="doc-link">📄 RG Frente</a> ` : ''}
+                            ${d.rgVerso ? `<a href="${d.rgVerso}" target="_blank" class="doc-link">📄 RG Verso</a> ` : ''}
+                            ${d.cpfFoto ? `<a href="${d.cpfFoto}" target="_blank" class="doc-link">📄 Foto CPF</a>` : ''}
+                        </div>
+                    </div>
+
+                    <div class="secao-detalhe">
+                        <h4>2. Saúde</h4>
+                        <div class="grid-detalhes">
+                            <div class="item-detalhe"><strong>Gestante</strong>${s.gestante || 'Não'}${s.gestanteTempo ? ` (${s.gestanteTempo})` : ''}</div>
+                            <div class="item-detalhe"><strong>Fuma</strong>${s.fuma || 'Não'}${s.fumaTempo ? ` (${s.fumaTempo})` : ''}</div>
+                            <div class="item-detalhe"><strong>Bebe</strong>${s.bebe || 'Não'}${s.bebeTempo ? ` (${s.bebeTempo})` : ''}</div>
+                            <div class="item-detalhe"><strong>Vícios</strong>${s.temVicios || 'Não'}${s.viciosInfo ? `: ${s.viciosInfo}` : ''}</div>
+                            <div class="item-detalhe"><strong>Hipertensão</strong>${s.hipertensao || 'Não'}${s.hipertensaoInfo ? `: ${s.hipertensaoInfo}` : ''}</div>
+                            <div class="item-detalhe"><strong>Diabetes</strong>${s.diabetes || 'Não'}${s.diabetesInfo ? `: ${s.diabetesInfo}` : ''}</div>
+                            <div class="item-detalhe"><strong>AVC</strong>${s.avc || 'Não'}${s.avcQuando ? ` (${s.avcQuando})` : ''}</div>
+                            <div class="item-detalhe"><strong>Infarto</strong>${s.infarto || 'Não'}${s.infartoQuando ? ` (${s.infartoQuando})` : ''}</div>
+                            <div class="item-detalhe"><strong>Doença Cardíaca</strong>${s.doencaCardiaca || 'Não'}${s.cardiacaQual ? `: ${s.cardiacaQual}` : ''}</div>
+                            <div class="item-detalhe"><strong>Problema nos Rins</strong>${s.rins || 'Não'}${s.rinsQual ? `: ${s.rinsQual}` : ''}</div>
+                            <div class="item-detalhe"><strong>Respiratório</strong>${s.respiratorio || 'Não'}${s.respiratorioQual ? `: ${s.respiratorioQual}` : ''}</div>
+                            <div class="item-detalhe"><strong>Tuberculose</strong>${s.tuberculose || 'Não'}${s.tuberculoseQuando ? ` (${s.tuberculoseQuando})` : ''}</div>
+                            <div class="item-detalhe"><strong>Câncer</strong>${s.cancer || 'Não'}${s.cancerQuando ? ` (${s.cancerQuando})` : ''}</div>
+                            <div class="item-detalhe"><strong>Internação (12m)</strong>${s.internacao || 'Não'}${s.internacaoMotivo ? `: ${s.internacaoMotivo}` : ''}</div>
+                            <div class="item-detalhe"><strong>Psiquiatra</strong>${s.psiquiatra || 'Não'}${s.psiquiatraInfo ? `: ${s.psiquiatraInfo}` : ''}</div>
+                            <div class="item-detalhe"><strong>Ansiedade</strong>${s.ansiedade || 'Não'}</div>
+                            <div class="item-detalhe"><strong>Depressão</strong>${s.depressao || 'Não'}</div>
+                            <div class="item-detalhe"><strong>Tipo Sanguíneo</strong>${s.tipoSanguineo || '-'}</div>
+                            <div class="item-detalhe"><strong>Alergia a Erva</strong>${s.alergiaErva || 'Não'}${s.alergiaErvaQual ? `: ${s.alergiaErvaQual}` : ''}</div>
+                            <div class="item-detalhe"><strong>Alergia Alimentar</strong>${s.alergiaAlimentar || 'Não'}${s.alergiaAlimentarQual ? `: ${s.alergiaAlimentarQual}` : ''}</div>
+                            <div class="item-detalhe"><strong>Medicamentos Contínuos</strong>${s.medicamentosContinuosTexto || '-'}</div>
+                            <div class="item-detalhe"><strong>Doença Crônica</strong>${s.doencaCronicaTexto || '-'}</div>
+                            <div class="item-detalhe"><strong>Cirurgias/Tratamentos</strong>${s.cirurgiasTratamentosTexto || '-'}</div>
+                            <div class="item-detalhe"><strong>Acompanhamento Psic./Psiq.</strong>${s.acompanhamentoPsicologicoPsiquiatricoTexto || '-'}</div>
+                        </div>
+                        ${s.informacoesComplementares ? `<p style="margin-top:10px; font-size:12px;"><strong>Info Complementar Saúde:</strong> ${s.informacoesComplementares}</p>` : ''}
+                        ${s.observacoesGeraisSaude ? `<p style="margin-top:5px; font-size:12px;"><strong>Obs. Gerais Saúde:</strong> ${s.observacoesGeraisSaude}</p>` : ''}
+                    </div>
+
+                    <div class="secao-detalhe">
+                        <h4>3. Informações Espirituais</h4>
+                        <div class="grid-detalhes">
+                            <div class="item-detalhe"><strong>Batizado na Umbanda</strong>${esp.batizadoUmbanda || 'Não'}${esp.batizadoUmbandaQuando ? ` (${esp.batizadoUmbandaQuando})` : ''}</div>
+                            <div class="item-detalhe"><strong>Iniciado em outra religião</strong>${esp.outraReligiao || 'Não'}${esp.outraReligiaoQual ? `: ${esp.outraReligiaoQual}` : ''}</div>
+                            <div class="item-detalhe"><strong>Outros Terreiros</strong>${esp.outrosTerreiros || 'Não'}${esp.outrosTerreirosInfo ? `: ${esp.outrosTerreirosInfo}` : ''}</div>
+                            <div class="item-detalhe"><strong>Pais de Cabeça</strong>${esp.paisCabeca || 'Não'}${esp.paisCabecaQuem ? `: ${esp.paisCabecaQuem}` : ''}</div>
+                        </div>
+                        <p style="margin-top:10px; font-size:12px;"><strong>Mediunidade:</strong> ${esp.tipoMediunidade || 'Não informada'}</p>
+                        
+                        <h5 style="margin-top:15px; margin-bottom:8px; color: var(--dourado);">Guias / Entidades:</h5>
+                        <div class="grid-detalhes">
+                            <div class="item-detalhe"><strong>Caboclo:</strong> ${ent.cabocloNome || ent.caboclo || '-'}</div>
+                            <div class="item-detalhe"><strong>Preto Velho:</strong> ${ent.pretoVelhoNome || ent.pretoVelho || '-'}</div>
+                            <div class="item-detalhe"><strong>Erê:</strong> ${ent.ereNome || ent.ere || '-'}</div>
+                            <div class="item-detalhe"><strong>Marinheiro:</strong> ${ent.marinheiroNome || ent.marinheiro || '-'}</div>
+                            <div class="item-detalhe"><strong>Baiano:</strong> ${ent.baianoNome || ent.baiano || '-'}</div>
+                            <div class="item-detalhe"><strong>Boiadeiro:</strong> ${ent.boiadeiroNome || ent.boiadeiro || '-'}</div>
+                            <div class="item-detalhe"><strong>Cigano:</strong> ${ent.ciganoNome || ent.cigano || '-'}</div>
+                            <div class="item-detalhe"><strong>Malandro:</strong> ${ent.malandroNome || ent.malandro || '-'}</div>
+                            <div class="item-detalhe"><strong>Exu:</strong> ${ent.exuNome || ent.exu || '-'}</div>
+                            <div class="item-detalhe"><strong>Pombagira:</strong> ${ent.pombagiraNome || ent.pombagira || '-'}</div>
+                            <div class="item-detalhe"><strong>Exu Mirim:</strong> ${ent.exuMirimNome || ent.exuMirim || '-'}</div>
+                        </div>
+                    </div>
+
+                    <div class="secao-detalhe">
+                        <h4>4. Observações Complementares</h4>
+                        <p style="font-size:12px; margin-bottom:8px;"><strong>Info para Mãe de Santo:</strong> ${comp.informacaoMaeSanto || '-'}</p>
+                        <p style="font-size:12px;"><strong>Info Adicional:</strong> ${comp.informacaoAdicional || '-'}</p>
+                    </div>
+
+                    <div class="modal-rodape" id="rodapeBotoes">
+                        <div class="grupo-botoes">
+                            <button class="btn-acao btn-pdf" onclick="gerarPDF('${id}')">📄 Baixar PDF</button>
+                            <button class="btn-acao btn-imprimir" onclick="imprimirCadastro()">🖨️ Imprimir</button>
+                            <button class="btn-acao btn-editar" onclick="abrirModal('${id}', true)">✏️ Editar</button>
+                            <button class="btn-acao btn-excluir-modal" onclick="excluirCadastro('${id}')">🗑️ Excluir</button>
+                        </div>
+                        <span style="font-size:11px; color:#888;">Cadastrado em: ${formatarData(item.dataCadastro)}</span>
+                    </div>
+                `;
+            }
+
+            document.getElementById("conteudoDetalhes").innerHTML = html;
+            document.getElementById("modalDetalhes").classList.add("visivel");
+        }
+
+        async function salvarEdicao(event, id) {
+            event.preventDefault();
+
+            const atualizacao = {
+                "cadastro/nomeCompleto": document.getElementById("edit_nomeCompleto").value,
+                "cadastro/dataNascimento": document.getElementById("edit_dataNascimento").value,
+                "cadastro/idade": document.getElementById("edit_idade").value,
+                "cadastro/faixaEtaria": document.getElementById("edit_faixaEtaria").value,
+                "cadastro/dataEntradaTucuvori": document.getElementById("edit_dataEntradaTucuvori").value,
+                "cadastro/tempoTucuvori": document.getElementById("edit_tempoTucuvori").value,
+                "cadastro/sexoBiologico": document.getElementById("edit_sexoBiologico").value,
+                "cadastro/identidadeGenero": document.getElementById("edit_identidadeGenero").value,
+                "cadastro/orientacaoSexual": document.getElementById("edit_orientacaoSexual").value,
+                "cadastro/telefoneWhatsapp": document.getElementById("edit_telefoneWhatsapp").value,
+                "cadastro/telefoneContato": document.getElementById("edit_telefoneContato").value,
+                "cadastro/email": document.getElementById("edit_email").value,
+
+                "emergencia/nome": document.getElementById("edit_emergenciaNome").value,
+                "emergencia/parentesco": document.getElementById("edit_emergenciaParentesco").value,
+                "emergencia/telefone": document.getElementById("edit_emergenciaTelefone").value,
+
+                "documentos/rg": document.getElementById("edit_rg").value,
+                "documentos/cpf": document.getElementById("edit_cpf").value,
+                "documentos/endereco/rua": document.getElementById("edit_rua").value,
+                "documentos/endereco/numero": document.getElementById("edit_numero").value,
+                "documentos/endereco/bairro": document.getElementById("edit_bairro").value,
+                "documentos/endereco/cidade": document.getElementById("edit_cidade").value,
+                "documentos/endereco/uf": document.getElementById("edit_uf").value,
+                "documentos/endereco/cep": document.getElementById("edit_cep").value,
+
+                "saude/gestante": document.getElementById("edit_gestante").value,
+                "saude/gestanteTempo": document.getElementById("edit_gestanteTempo").value,
+                "saude/fuma": document.getElementById("edit_fuma").value,
+                "saude/fumaTempo": document.getElementById("edit_fumaTempo").value,
+                "saude/bebe": document.getElementById("edit_bebe").value,
+                "saude/bebeTempo": document.getElementById("edit_bebeTempo").value,
+                "saude/temVicios": document.getElementById("edit_temVicios").value,
+                "saude/viciosInfo": document.getElementById("edit_viciosInfo").value,
+                "saude/hipertensao": document.getElementById("edit_hipertensao").value,
+                "saude/hipertensaoInfo": document.getElementById("edit_hipertensaoInfo").value,
+                "saude/diabetes": document.getElementById("edit_diabetes").value,
+                "saude/diabetesInfo": document.getElementById("edit_diabetesInfo").value,
+                "saude/avc": document.getElementById("edit_avc").value,
+                "saude/avcQuando": document.getElementById("edit_avcQuando").value,
+                "saude/infarto": document.getElementById("edit_infarto").value,
+                "saude/infartoQuando": document.getElementById("edit_infartoQuando").value,
+                "saude/doencaCardiaca": document.getElementById("edit_doencaCardiaca").value,
+                "saude/cardiacaQual": document.getElementById("edit_cardiacaQual").value,
+                "saude/rins": document.getElementById("edit_rins").value,
+                "saude/rinsQual": document.getElementById("edit_rinsQual").value,
+                "saude/respiratorio": document.getElementById("edit_respiratorio").value,
+                "saude/respiratorioQual": document.getElementById("edit_respiratorioQual").value,
+                "saude/tuberculose": document.getElementById("edit_tuberculose").value,
+                "saude/tuberculoseQuando": document.getElementById("edit_tuberculoseQuando").value,
+                "saude/cancer": document.getElementById("edit_cancer").value,
+                "saude/cancerQuando": document.getElementById("edit_cancerQuando").value,
+                "saude/internacao": document.getElementById("edit_internacao").value,
+                "saude/internacaoMotivo": document.getElementById("edit_internacaoMotivo").value,
+                "saude/psiquiatra": document.getElementById("edit_psiquiatra").value,
+                "saude/psiquiatraInfo": document.getElementById("edit_psiquiatraInfo").value,
+                "saude/ansiedade": document.getElementById("edit_ansiedade").value,
+                "saude/depressao": document.getElementById("edit_depressao").value,
+                "saude/tipoSanguineo": document.getElementById("edit_tipoSanguineo").value,
+                "saude/alergiaErva": document.getElementById("edit_alergiaErva").value,
+                "saude/alergiaErvaQual": document.getElementById("edit_alergiaErvaQual").value,
+                "saude/alergiaAlimentar": document.getElementById("edit_alergiaAlimentar").value,
+                "saude/alergiaAlimentarQual": document.getElementById("edit_alergiaAlimentarQual").value,
+                "saude/medicamentosContinuosTexto": document.getElementById("edit_medicamentosContinuosTexto").value,
+                "saude/doencaCronicaTexto": document.getElementById("edit_doencaCronicaTexto").value,
+                "saude/cirurgiasTratamentosTexto": document.getElementById("edit_cirurgiasTratamentosTexto").value,
+                "saude/acompanhamentoPsicologicoPsiquiatricoTexto": document.getElementById("edit_acompanhamentoPsicologicoPsiquiatricoTexto").value,
+                "saude/informacoesComplementares": document.getElementById("edit_informacoesComplementares").value,
+                "saude/observacoesGeraisSaude": document.getElementById("edit_observacoesGeraisSaude").value,
+
+                "espiritual/batizadoUmbanda": document.getElementById("edit_batizadoUmbanda").value,
+                "espiritual/batizadoUmbandaQuando": document.getElementById("edit_batizadoUmbandaQuando").value,
+                "espiritual/outraReligiao": document.getElementById("edit_outraReligiao").value,
+                "espiritual/outraReligiaoQual": document.getElementById("edit_outraReligiaoQual").value,
+                "espiritual/outrosTerreiros": document.getElementById("edit_outrosTerreiros").value,
+                "espiritual/outrosTerreirosInfo": document.getElementById("edit_outrosTerreirosInfo").value,
+                "espiritual/paisCabeca": document.getElementById("edit_paisCabeca").value,
+                "espiritual/paisCabecaQuem": document.getElementById("edit_paisCabecaQuem").value,
+                "espiritual/tipoMediunidade": document.getElementById("edit_tipoMediunidade").value,
+
+                "espiritual/entidades/cabocloNome": document.getElementById("edit_cabocloNome").value,
+                "espiritual/entidades/pretoVelhoNome": document.getElementById("edit_pretoVelhoNome").value,
+                "espiritual/entidades/ereNome": document.getElementById("edit_ereNome").value,
+                "espiritual/entidades/marinheiroNome": document.getElementById("edit_marinheiroNome").value,
+                "espiritual/entidades/baianoNome": document.getElementById("edit_baianoNome").value,
+                "espiritual/entidades/boiadeiroNome": document.getElementById("edit_boiadeiroNome").value,
+                "espiritual/entidades/ciganoNome": document.getElementById("edit_ciganoNome").value,
+                "espiritual/entidades/malandroNome": document.getElementById("edit_malandroNome").value,
+                "espiritual/entidades/exuNome": document.getElementById("edit_exuNome").value,
+                "espiritual/entidades/pombagiraNome": document.getElementById("edit_pombagiraNome").value,
+                "espiritual/entidades/exuMirimNome": document.getElementById("edit_exuMirimNome").value,
+
+                "complementar/informacaoMaeSanto": document.getElementById("edit_informacaoMaeSanto").value,
+                "complementar/informacaoAdicional": document.getElementById("edit_informacaoAdicional").value
+            };
+
+            try {
+                await database.ref(`cadastrosEntrada/${id}`).update(atualizacao);
+                alert("Cadastro atualizado com sucesso!");
+                abrirModal(id, false);
+            } catch (erro) {
+                console.error("Erro ao atualizar:", erro);
+                alert("Erro ao salvar as alterações.");
+            }
+        }
+
+        // GERAR PDF COM TODOS OS DADOS DA FICHA
+        function gerarPDF(id) {
+            const item = todosCadastros[id];
+            if (!item) return;
+
+            const c = item.cadastro || {};
+            const e = item.emergencia || {};
+            const d = item.documentos || {};
+            const end = d.endereco || {};
+            const s = item.saude || {};
+            const esp = item.espiritual || {};
+            const ent = esp.entidades || {};
+            const comp = item.complementar || {};
+
+            // Container temporário formatado exclusivo para o PDF
+            const containerPdf = document.createElement("div");
+            containerPdf.style.padding = "20px";
+            containerPdf.style.fontFamily = "Arial, sans-serif";
+            containerPdf.style.fontSize = "11px";
+            containerPdf.style.color = "#181818";
+            containerPdf.style.lineHeight = "1.4";
+
+            containerPdf.innerHTML = `
+                <div style="text-align: center; border-bottom: 2px solid #760d0d; padding-bottom: 10px; margin-bottom: 15px;">
+                    <h2 style="color: #760d0d; font-size: 16px; margin: 0;">Templo de Umbanda Caboclo Ubirajara e Vovó Rita</h2>
+                    <p style="font-size: 11px; color: #555; margin: 3px 0 0 0;">Ficha Completa do Filho de Fé — Cadastro N.º: <strong>${item.numeroCadastro || 'S/N'}</strong></p>
+                </div>
+
+                <!-- 1. DADOS PESSOAIS -->
+                <div style="margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+                    <h3 style="color: #760d0d; font-size: 12px; margin-bottom: 6px; text-transform: uppercase;">1. Dados Pessoais</h3>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                        <tr>
+                            <td style="padding: 3px 0;"><strong>Nome Completo:</strong> ${c.nomeCompleto || '-'}</td>
+                            <td style="padding: 3px 0;"><strong>Data Nascimento:</strong> ${formatarData(c.dataNascimento)}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 3px 0;"><strong>Idade / Faixa Etária:</strong> ${c.idade || '-'} (${c.faixaEtaria || '-'})</td>
+                            <td style="padding: 3px 0;"><strong>Entrada na Casa:</strong> ${formatarData(c.dataEntradaTucuvori)} (${c.tempoTucuvori || '-'})</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 3px 0;"><strong>Sexo Biológico:</strong> ${c.sexoBiologico || '-'}</td>
+                            <td style="padding: 3px 0;"><strong>Gênero / Orientação:</strong> ${c.identidadeGenero || '-'} / ${c.orientacaoSexual || '-'}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 3px 0;"><strong>WhatsApp / Contato:</strong> ${c.telefoneWhatsapp || '-'} / ${c.telefoneContato || '-'}</td>
+                            <td style="padding: 3px 0;"><strong>E-mail:</strong> ${c.email || '-'}</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <!-- CONTATO EMERGÊNCIA -->
+                <div style="margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+                    <h3 style="color: #760d0d; font-size: 12px; margin-bottom: 6px; text-transform: uppercase;">Contato de Emergência</h3>
+                    <p style="margin: 2px 0;"><strong>Nome:</strong> ${e.nome || '-'} | <strong>Parentesco:</strong> ${e.parentesco || '-'} | <strong>Telefone:</strong> ${e.telefone || '-'}</p>
+                </div>
+
+                <!-- DOCUMENTOS E ENDEREÇO -->
+                <div style="margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+                    <h3 style="color: #760d0d; font-size: 12px; margin-bottom: 6px; text-transform: uppercase;">Documentos & Endereço</h3>
+                    <p style="margin: 2px 0;"><strong>RG:</strong> ${d.rg || '-'} | <strong>CPF:</strong> ${d.cpf || '-'}</p>
+                    <p style="margin: 2px 0;"><strong>Endereço:</strong> ${end.rua || ''}, ${end.numero || ''} - ${end.bairro || ''}, ${end.cidade || ''}/${end.uf || ''} (CEP: ${end.cep || ''})</p>
+                    <p style="margin-top: 4px; font-size: 10px; color: #555;">
+                        ${d.rgFrente ? `• Link RG Frente: ${d.rgFrente}<br>` : ''}
+                        ${d.rgVerso ? `• Link RG Verso: ${d.rgVerso}<br>` : ''}
+                        ${d.cpfFoto ? `• Link Foto CPF: ${d.cpfFoto}` : ''}
+                    </p>
+                </div>
+
+                <!-- 2. SAÚDE -->
+                <div style="margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+                    <h3 style="color: #760d0d; font-size: 12px; margin-bottom: 6px; text-transform: uppercase;">2. Ficha de Saúde</h3>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 10px; line-height: 1.5;">
+                        <tr>
+                            <td><strong>Gestante:</strong> ${s.gestante || 'Não'} ${s.gestanteTempo ? `(${s.gestanteTempo})` : ''}</td>
+                            <td><strong>Fuma:</strong> ${s.fuma || 'Não'} ${s.fumaTempo ? `(${s.fumaTempo})` : ''}</td>
+                            <td><strong>Bebe:</strong> ${s.bebe || 'Não'} ${s.bebeTempo ? `(${s.bebeTempo})` : ''}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Vícios:</strong> ${s.temVicios || 'Não'} ${s.viciosInfo ? `(${s.viciosInfo})` : ''}</td>
+                            <td><strong>Hipertensão:</strong> ${s.hipertensao || 'Não'} ${s.hipertensaoInfo ? `(${s.hipertensaoInfo})` : ''}</td>
+                            <td><strong>Diabetes:</strong> ${s.diabetes || 'Não'} ${s.diabetesInfo ? `(${s.diabetesInfo})` : ''}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>AVC:</strong> ${s.avc || 'Não'} ${s.avcQuando ? `(${s.avcQuando})` : ''}</td>
+                            <td><strong>Infarto:</strong> ${s.infarto || 'Não'} ${s.infartoQuando ? `(${s.infartoQuando})` : ''}</td>
+                            <td><strong>Cardíaca:</strong> ${s.doencaCardiaca || 'Não'} ${s.cardiacaQual ? `(${s.cardiacaQual})` : ''}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Rins:</strong> ${s.rins || 'Não'} ${s.rinsQual ? `(${s.rinsQual})` : ''}</td>
+                            <td><strong>Respiratório:</strong> ${s.respiratorio || 'Não'} ${s.respiratorioQual ? `(${s.respiratorioQual})` : ''}</td>
+                            <td><strong>Tuberculose:</strong> ${s.tuberculose || 'Não'} ${s.tuberculoseQuando ? `(${s.tuberculoseQuando})` : ''}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Câncer:</strong> ${s.cancer || 'Não'} ${s.cancerQuando ? `(${s.cancerQuando})` : ''}</td>
+                            <td><strong>Internação (12m):</strong> ${s.internacao || 'Não'} ${s.internacaoMotivo ? `(${s.internacaoMotivo})` : ''}</td>
+                            <td><strong>Psiquiatra:</strong> ${s.psiquiatra || 'Não'} ${s.psiquiatraInfo ? `(${s.psiquiatraInfo})` : ''}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Ansiedade:</strong> ${s.ansiedade || 'Não'}</td>
+                            <td><strong>Depressão:</strong> ${s.depressao || 'Não'}</td>
+                            <td><strong>Tipo Sanguíneo:</strong> ${s.tipoSanguineo || '-'}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Alergia Erva:</strong> ${s.alergiaErva || 'Não'} ${s.alergiaErvaQual ? `(${s.alergiaErvaQual})` : ''}</td>
+                            <td colspan="2"><strong>Alergia Alimentar:</strong> ${s.alergiaAlimentar || 'Não'} ${s.alergiaAlimentarQual ? `(${s.alergiaAlimentarQual})` : ''}</td>
+                        </tr>
+                    </table>
+                    <div style="margin-top: 6px; font-size: 10px;">
+                        <p><strong>Medicamentos Contínuos:</strong> ${s.medicamentosContinuosTexto || '-'}</p>
+                        <p><strong>Doença Crônica:</strong> ${s.doencaCronicaTexto || '-'}</p>
+                        <p><strong>Cirurgias/Tratamentos:</strong> ${s.cirurgiasTratamentosTexto || '-'}</p>
+                        <p><strong>Acompanhamento Psic./Psiq.:</strong> ${s.acompanhamentoPsicologicoPsiquiatricoTexto || '-'}</p>
+                        <p><strong>Info Complementar Saúde:</strong> ${s.informacoesComplementares || '-'}</p>
+                        <p><strong>Obs. Gerais Saúde:</strong> ${s.observacoesGeraisSaude || '-'}</p>
+                    </div>
+                </div>
+
+                <!-- 3. ESPIRITUAL -->
+                <div style="margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+                    <h3 style="color: #760d0d; font-size: 12px; margin-bottom: 6px; text-transform: uppercase;">3. Informações Espirituais</h3>
+                    <p style="margin: 2px 0;"><strong>Batizado Umbanda:</strong> ${esp.batizadoUmbanda || 'Não'} ${esp.batizadoUmbandaQuando ? `(${esp.batizadoUmbandaQuando})` : ''}</p>
+                    <p style="margin: 2px 0;"><strong>Iniciado Outra Religião:</strong> ${esp.outraReligiao || 'Não'} ${esp.outraReligiaoQual ? `(${esp.outraReligiaoQual})` : ''}</p>
+                    <p style="margin: 2px 0;"><strong>Outros Terreiros:</strong> ${esp.outrosTerreiros || 'Não'} ${esp.outrosTerreirosInfo ? `(${esp.outrosTerreirosInfo})` : ''}</p>
+                    <p style="margin: 2px 0;"><strong>Pais de Cabeça:</strong> ${esp.paisCabeca || 'Não'} ${esp.paisCabecaQuem ? `(${esp.paisCabecaQuem})` : ''}</p>
+                    <p style="margin: 2px 0;"><strong>Tipo Mediunidade:</strong> ${esp.tipoMediunidade || '-'}</p>
+
+                    <h4 style="font-size: 11px; color: #c69a3b; margin-top: 8px; margin-bottom: 4px;">Guias / Entidades:</h4>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+                        <tr>
+                            <td><strong>Caboclo:</strong> ${ent.cabocloNome || ent.caboclo || '-'}</td>
+                            <td><strong>Preto Velho:</strong> ${ent.pretoVelhoNome || ent.pretoVelho || '-'}</td>
+                            <td><strong>Erê:</strong> ${ent.ereNome || ent.ere || '-'}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Marinheiro:</strong> ${ent.marinheiroNome || ent.marinheiro || '-'}</td>
+                            <td><strong>Baiano:</strong> ${ent.baianoNome || ent.baiano || '-'}</td>
+                            <td><strong>Boiadeiro:</strong> ${ent.boiadeiroNome || ent.boiadeiro || '-'}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cigano:</strong> ${ent.ciganoNome || ent.cigano || '-'}</td>
+                            <td><strong>Malandro:</strong> ${ent.malandroNome || ent.malandro || '-'}</td>
+                            <td><strong>Exu:</strong> ${ent.exuNome || ent.exu || '-'}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Pombagira:</strong> ${ent.pombagiraNome || ent.pombagira || '-'}</td>
+                            <td><strong>Exu Mirim:</strong> ${ent.exuMirimNome || ent.exuMirim || '-'}</td>
+                            <td></td>
+                        </tr>
+                    </table>
+                </div>
+
+                <!-- 4. OBSERVAÇÕES COMPLEMENTARES -->
+                <div style="margin-bottom: 10px;">
+                    <h3 style="color: #760d0d; font-size: 12px; margin-bottom: 6px; text-transform: uppercase;">4. Observações Complementares</h3>
+                    <p style="margin: 2px 0;"><strong>Mãe de Santo:</strong> ${comp.informacaoMaeSanto || '-'}</p>
+                    <p style="margin: 2px 0;"><strong>Info Adicional:</strong> ${comp.informacaoAdicional || '-'}</p>
+                </div>
+
+                <div style="margin-top: 15px; text-align: right; font-size: 9px; color: #888; border-top: 1px solid #eee; padding-top: 5px;">
+                    Gerado em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}
+                </div>
+            `;
+
+            const nomeArquivo = `Ficha_${(c.nomeCompleto || 'Cadastro').replace(/\s+/g, '_')}.pdf`;
+
+            const opcoes = {
+                margin: 8,
+                filename: nomeArquivo,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opcoes).from(containerPdf).save();
+        }
+
+        function imprimirCadastro() {
+            window.print();
+        }
+
+        function fecharModal() {
+            document.getElementById("modalDetalhes").classList.remove("visivel");
+            cadastroSelecionadoId = null;
+            modoEdicao = false;
+        }
+
+        async function excluirCadastro(id, evento) {
+            if (evento) evento.stopPropagation();
+
+            const item = todosCadastros[id];
+            const nome = item?.cadastro?.nomeCompleto || 'este cadastro';
+
+            if (confirm(`Tem certeza que deseja excluir o cadastro de "${nome}"?\n\nEsta ação não poderá ser desfeita.`)) {
+                try {
+                    await database.ref(`cadastrosEntrada/${id}`).remove();
+                    alert("Cadastro excluído com sucesso!");
+                    if (cadastroSelecionadoId === id) {
+                        fecharModal();
+                    }
+                } catch (erro) {
+                    console.error("Erro ao excluir:", erro);
+                    alert("Ocorreu um erro ao excluir o cadastro. Tente novamente.");
+                }
+            }
+        }
+
+        function formatarData(dataIso) {
+            if (!dataIso) return '-';
+            try {
+                const partes = dataIso.split("T")[0].split("-");
+                if (partes.length === 3) {
+                    return `${partes[2]}/${partes[1]}/${partes[0]}`;
+                }
+                return dataIso;
+            } catch (e) {
+                return dataIso;
+            }
+        }
+    </script>
+</body>
+
+</html>
