@@ -97,11 +97,28 @@
             cursor: pointer;
             transition: transform .2s, box-shadow .2s;
             position: relative;
+            display: flex;
+            gap: 15px;
+            align-items: flex-start;
         }
 
         .card-resumo:hover {
             transform: translateY(-2px);
             box-shadow: 0 12px 35px rgba(0,0,0,.12);
+        }
+
+        .foto-thumb-card {
+            width: 70px;
+            height: 70px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 1px solid var(--borda);
+            background: #eee;
+            flex-shrink: 0;
+        }
+
+        .card-conteudo {
+            flex: 1;
         }
 
         .card-resumo h3 {
@@ -192,6 +209,24 @@
             cursor: pointer;
         }
 
+        .cabecalho-perfil {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--cinza-claro);
+            padding-bottom: 15px;
+        }
+
+        .foto-perfil-modal {
+            width: 110px;
+            height: 110px;
+            border-radius: 10px;
+            object-fit: cover;
+            border: 2px solid var(--vermelho);
+            background-color: #f8f8f8;
+        }
+
         .secao-detalhe {
             margin-bottom: 20px;
             padding-bottom: 15px;
@@ -225,6 +260,41 @@
             text-transform: uppercase;
         }
 
+        /* GALERIA DE DOCUMENTOS */
+        .galeria-documentos {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .card-doc-img {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #f9f9f9;
+            border: 1px solid var(--borda);
+            border-radius: 8px;
+            padding: 8px;
+            text-decoration: none;
+            color: #333;
+            max-width: 180px;
+        }
+
+        .card-doc-img img {
+            width: 100%;
+            height: 110px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            margin-bottom: 6px;
+        }
+
+        .card-doc-img span {
+            font-size: 11px;
+            font-weight: bold;
+        }
+
         /* FORMULÁRIO EDIÇÃO */
         .campo-edicao {
             display: flex;
@@ -247,12 +317,14 @@
             width: 100%;
         }
 
-        .doc-link {
-            display: inline-block;
+        .preview-imagem-edit {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid var(--borda);
             margin-top: 5px;
-            color: var(--vermelho);
-            text-decoration: underline;
-            font-size: 12px;
+            background: #f8f8f8;
         }
 
         .modal-rodape {
@@ -311,11 +383,13 @@
 
         @media print {
             body { background: white !important; color: black !important; }
-            header, .container, .fechar-modal, .modal-rodape, .doc-link { display: none !important; }
+            header, .container, .fechar-modal, .modal-rodape { display: none !important; }
             .modal { position: static !important; display: block !important; background: transparent !important; padding: 0 !important; }
             .modal-conteudo { max-height: none !important; overflow: visible !important; box-shadow: none !important; border: none !important; padding: 0 !important; width: 100% !important; }
             .cabecalho-impressao { display: block !important; }
             .secao-detalhe { page-break-inside: avoid; }
+            .card-doc-img img, .foto-perfil-modal { max-width: 100% !important; height: auto !important; max-height: 150px !important; display: block !important; }
+            .galeria-documentos { display: flex !important; flex-wrap: wrap !important; gap: 10px !important; }
         }
     </style>
 </head>
@@ -363,6 +437,43 @@
         let cadastroSelecionadoId = null;
         let modoEdicao = false;
 
+        const PLACEHOLDER_FOTO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='%23cccccc'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+
+        // Garante a formatação adequada para renderização da imagem
+        function processarImagem(src) {
+            if (!src) return PLACEHOLDER_FOTO;
+            src = src.trim();
+            if (src.startsWith("data:image/") || src.startsWith("http://") || src.startsWith("https://")) {
+                return src;
+            }
+            return `data:image/jpeg;base64,${src}`;
+        }
+
+        // Converte o arquivo selecionado no leitor para Base64
+        function converterParaBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        // Evento disparado na escolha de arquivo via upload
+        async function aoSelecionarArquivo(inputElement, previewId, hiddenInputId) {
+            const file = inputElement.files[0];
+            if (file) {
+                try {
+                    const base64 = await converterParaBase64(file);
+                    document.getElementById(previewId).src = base64;
+                    document.getElementById(hiddenInputId).value = base64;
+                } catch (e) {
+                    console.error("Erro ao converter arquivo:", e);
+                    alert("Erro ao ler o arquivo selecionado.");
+                }
+            }
+        }
+
         database.ref("cadastrosEntrada").on("value", snapshot => {
             todosCadastros = snapshot.val() || {};
             renderizarCadastros(todosCadastros);
@@ -383,6 +494,8 @@
                 const item = dados[id];
                 const info = item.cadastro || {};
                 const docs = item.documentos || {};
+                const fotoPerfilRaw = item.fotoPerfilUrl || docs.fotoPerfil || item.fotoPerfil;
+                const fotoPerfil = processarImagem(fotoPerfilRaw);
 
                 const card = document.createElement("div");
                 card.className = "card-resumo";
@@ -393,15 +506,18 @@
                 };
 
                 card.innerHTML = `
-                    <span class="badge-id">${item.numeroCadastro || 'S/N'}</span>
-                    <h3>${info.nomeCompleto || 'Nome não informado'}</h3>
-                    <p><strong>WhatsApp:</strong> ${info.telefoneWhatsapp || '-'}</p>
-                    <p><strong>CPF:</strong> ${docs.cpf || '-'}</p>
-                    <p><strong>Entrada na TUCUVORI:</strong> ${formatarData(info.dataEntradaTucuvori)}</p>
-                    
-                    <div class="acoes-card">
-                        <span style="font-size: 11px; color: #888;">Clique para abrir</span>
-                        <button class="btn-excluir" onclick="excluirCadastro('${id}', event)">🗑️ Excluir</button>
+                    <img src="${fotoPerfil}" class="foto-thumb-card" alt="Foto de ${info.nomeCompleto || 'Perfil'}" onerror="this.src='${PLACEHOLDER_FOTO}'">
+                    <div class="card-conteudo">
+                        <span class="badge-id">${item.numeroCadastro || 'S/N'}</span>
+                        <h3>${info.nomeCompleto || 'Nome não informado'}</h3>
+                        <p><strong>WhatsApp:</strong> ${info.telefoneWhatsapp || '-'}</p>
+                        <p><strong>CPF:</strong> ${docs.cpf || '-'}</p>
+                        <p><strong>Entrada:</strong> ${formatarData(info.dataEntradaTucuvori)}</p>
+                        
+                        <div class="acoes-card">
+                            <span style="font-size: 11px; color: #888;">Clique para abrir</span>
+                            <button class="btn-excluir" onclick="excluirCadastro('${id}', event)">🗑️ Excluir</button>
+                        </div>
                     </div>
                 `;
 
@@ -445,17 +561,30 @@
             const ent = esp.entidades || {};
             const comp = item.complementar || {};
 
+            const fotoPerfilRaw = item.fotoPerfilUrl || d.fotoPerfil || item.fotoPerfil;
+            const fotoPerfil = processarImagem(fotoPerfilRaw);
+
             let html = '';
 
             if (modoEdicao) {
+                const rgFrenteImg = processarImagem(d.rgFrente);
+                const rgVersoImg = processarImagem(d.rgVerso);
+                const cpfFotoImg = processarImagem(d.cpfFoto);
+
                 html = `
                     <form id="formEdicao" onsubmit="salvarEdicao(event, '${id}')">
                         <span class="badge-id">${item.numeroCadastro || 'S/N'}</span>
                         <h2 style="color: var(--vermelho); margin-bottom: 15px;">Editando Cadastro Completo</h2>
 
                         <div class="secao-detalhe">
-                            <h4>1. Dados Pessoais</h4>
+                            <h4>1. Dados Pessoais & Foto</h4>
                             <div class="grid-detalhes">
+                                <div class="campo-edicao" style="grid-column: 1 / -1;">
+                                    <label>Upload da Foto de Perfil (Converte p/ Base64)</label>
+                                    <input type="file" accept="image/*" onchange="aoSelecionarArquivo(this, 'preview_fotoPerfil', 'edit_fotoPerfil')">
+                                    <input type="hidden" id="edit_fotoPerfil" value="${fotoPerfilRaw || ''}">
+                                    <img id="preview_fotoPerfil" src="${fotoPerfil}" class="preview-imagem-edit" onerror="this.src='${PLACEHOLDER_FOTO}'">
+                                </div>
                                 <div class="campo-edicao"><label>Nome Completo</label><input type="text" id="edit_nomeCompleto" value="${c.nomeCompleto || ''}"></div>
                                 <div class="campo-edicao"><label>Data Nascimento</label><input type="date" id="edit_dataNascimento" value="${c.dataNascimento || ''}"></div>
                                 <div class="campo-edicao"><label>Idade</label><input type="text" id="edit_idade" value="${c.idade || ''}"></div>
@@ -491,6 +620,26 @@
                                 <div class="campo-edicao"><label>Cidade</label><input type="text" id="edit_cidade" value="${end.cidade || ''}"></div>
                                 <div class="campo-edicao"><label>UF</label><input type="text" id="edit_uf" value="${end.uf || ''}"></div>
                                 <div class="campo-edicao"><label>CEP</label><input type="text" id="edit_cep" value="${end.cep || ''}"></div>
+                            </div>
+                            <div class="grid-detalhes" style="margin-top: 15px;">
+                                <div class="campo-edicao">
+                                    <label>Upload RG Frente</label>
+                                    <input type="file" accept="image/*" onchange="aoSelecionarArquivo(this, 'preview_rgFrente', 'edit_rgFrente')">
+                                    <input type="hidden" id="edit_rgFrente" value="${d.rgFrente || ''}">
+                                    <img id="preview_rgFrente" src="${rgFrenteImg}" class="preview-imagem-edit" onerror="this.src='${PLACEHOLDER_FOTO}'">
+                                </div>
+                                <div class="campo-edicao">
+                                    <label>Upload RG Verso</label>
+                                    <input type="file" accept="image/*" onchange="aoSelecionarArquivo(this, 'preview_rgVerso', 'edit_rgVerso')">
+                                    <input type="hidden" id="edit_rgVerso" value="${d.rgVerso || ''}">
+                                    <img id="preview_rgVerso" src="${rgVersoImg}" class="preview-imagem-edit" onerror="this.src='${PLACEHOLDER_FOTO}'">
+                                </div>
+                                <div class="campo-edicao">
+                                    <label>Upload CPF Foto</label>
+                                    <input type="file" accept="image/*" onchange="aoSelecionarArquivo(this, 'preview_cpfFoto', 'edit_cpfFoto')">
+                                    <input type="hidden" id="edit_cpfFoto" value="${d.cpfFoto || ''}">
+                                    <img id="preview_cpfFoto" src="${cpfFotoImg}" class="preview-imagem-edit" onerror="this.src='${PLACEHOLDER_FOTO}'">
+                                </div>
                             </div>
                         </div>
 
@@ -597,14 +746,24 @@
                     </form>
                 `;
             } else {
+                const rgFrenteImg = processarImagem(d.rgFrente);
+                const rgVersoImg = processarImagem(d.rgVerso);
+                const cpfFotoImg = processarImagem(d.cpfFoto);
+
                 html = `
                     <div class="cabecalho-impressao" id="cabecalhoPdf">
                         <h2>Templo de Umbanda Caboclo Ubirajara e Vovó Rita</h2>
                         <p>Ficha de Cadastro do Filho de Fé - ${item.numeroCadastro || 'S/N'}</p>
                     </div>
 
-                    <span class="badge-id">${item.numeroCadastro || 'S/N'}</span>
-                    <h2 style="color: var(--vermelho); margin-bottom: 15px;">${c.nomeCompleto || 'Sem Nome'}</h2>
+                    <div class="cabecalho-perfil">
+                        <img src="${fotoPerfil}" class="foto-perfil-modal" alt="Foto de Perfil" onerror="this.src='${PLACEHOLDER_FOTO}'">
+                        <div>
+                            <span class="badge-id">${item.numeroCadastro || 'S/N'}</span>
+                            <h2 style="color: var(--vermelho); margin-top: 4px;">${c.nomeCompleto || 'Sem Nome'}</h2>
+                            <p style="font-size:13px; color:#666; margin-top: 4px;">CPF: ${d.cpf || '-'} | RG: ${d.rg || '-'}</p>
+                        </div>
+                    </div>
 
                     <div class="secao-detalhe">
                         <h4>1. Dados Pessoais</h4>
@@ -637,10 +796,15 @@
                             <div class="item-detalhe"><strong>CPF</strong>${d.cpf || '-'}</div>
                             <div class="item-detalhe"><strong>Endereço</strong>${end.rua || ''}, ${end.numero || ''} - ${end.bairro || ''}, ${end.cidade || ''}/${end.uf || ''} (CEP: ${end.cep || ''})</div>
                         </div>
-                        <div style="margin-top: 10px;">
-                            ${d.rgFrente ? `<a href="${d.rgFrente}" target="_blank" class="doc-link">📄 RG Frente</a> ` : ''}
-                            ${d.rgVerso ? `<a href="${d.rgVerso}" target="_blank" class="doc-link">📄 RG Verso</a> ` : ''}
-                            ${d.cpfFoto ? `<a href="${d.cpfFoto}" target="_blank" class="doc-link">📄 Foto CPF</a>` : ''}
+                        
+                        <div style="margin-top: 15px;">
+                            <strong style="font-size: 11px; color: #555; text-transform: uppercase;">Imagens dos Documentos:</strong>
+                            <div class="galeria-documentos">
+                                ${d.rgFrente ? `<a href="${rgFrenteImg}" target="_blank" class="card-doc-img"><img src="${rgFrenteImg}" alt="RG Frente"><span>📄 RG Frente</span></a>` : ''}
+                                ${d.rgVerso ? `<a href="${rgVersoImg}" target="_blank" class="card-doc-img"><img src="${rgVersoImg}" alt="RG Verso"><span>📄 RG Verso</span></a>` : ''}
+                                ${d.cpfFoto ? `<a href="${cpfFotoImg}" target="_blank" class="card-doc-img"><img src="${cpfFotoImg}" alt="CPF Foto"><span>📄 Foto CPF</span></a>` : ''}
+                                ${(!d.rgFrente && !d.rgVerso && !d.cpfFoto) ? '<p style="font-size:12px; color:#888;">Nenhum documento em imagem anexado.</p>' : ''}
+                            </div>
                         </div>
                     </div>
 
@@ -727,7 +891,10 @@
         async function salvarEdicao(event, id) {
             event.preventDefault();
 
+            const fotoPerfil = document.getElementById("edit_fotoPerfil").value;
+
             const atualizacao = {
+                "fotoPerfilUrl": fotoPerfil,
                 "cadastro/nomeCompleto": document.getElementById("edit_nomeCompleto").value,
                 "cadastro/dataNascimento": document.getElementById("edit_dataNascimento").value,
                 "cadastro/idade": document.getElementById("edit_idade").value,
@@ -747,6 +914,9 @@
 
                 "documentos/rg": document.getElementById("edit_rg").value,
                 "documentos/cpf": document.getElementById("edit_cpf").value,
+                "documentos/rgFrente": document.getElementById("edit_rgFrente").value,
+                "documentos/rgVerso": document.getElementById("edit_rgVerso").value,
+                "documentos/cpfFoto": document.getElementById("edit_cpfFoto").value,
                 "documentos/endereco/rua": document.getElementById("edit_rua").value,
                 "documentos/endereco/numero": document.getElementById("edit_numero").value,
                 "documentos/endereco/bairro": document.getElementById("edit_bairro").value,
@@ -834,7 +1004,7 @@
             }
         }
 
-        // GERAR PDF COM TODOS OS DADOS DA FICHA
+        // GERAR PDF SUPORTANDO BASE64
         function gerarPDF(id) {
             const item = todosCadastros[id];
             if (!item) return;
@@ -848,7 +1018,12 @@
             const ent = esp.entidades || {};
             const comp = item.complementar || {};
 
-            // Container temporário formatado exclusivo para o PDF
+            const fotoPerfilRaw = item.fotoPerfilUrl || d.fotoPerfil || item.fotoPerfil;
+            const fotoPerfil = processarImagem(fotoPerfilRaw);
+            const rgFrenteImg = processarImagem(d.rgFrente);
+            const rgVersoImg = processarImagem(d.rgVerso);
+            const cpfFotoImg = processarImagem(d.cpfFoto);
+
             const containerPdf = document.createElement("div");
             containerPdf.style.padding = "20px";
             containerPdf.style.fontFamily = "Arial, sans-serif";
@@ -862,17 +1037,21 @@
                     <p style="font-size: 11px; color: #555; margin: 3px 0 0 0;">Ficha Completa do Filho de Fé — Cadastro N.º: <strong>${item.numeroCadastro || 'S/N'}</strong></p>
                 </div>
 
-                <!-- 1. DADOS PESSOAIS -->
+                <div style="display: flex; gap: 15px; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px; align-items: center;">
+                    <img src="${fotoPerfil}" style="width: 80px; height: 80px; border-radius: 6px; object-fit: cover; border: 1px solid #ccc;">
+                    <div>
+                        <h3 style="color: #760d0d; font-size: 14px; margin: 0;">${c.nomeCompleto || '-'}</h3>
+                        <p style="margin: 3px 0;"><strong>CPF:</strong> ${d.cpf || '-'} | <strong>RG:</strong> ${d.rg || '-'}</p>
+                        <p style="margin: 3px 0;"><strong>Entrada:</strong> ${formatarData(c.dataEntradaTucuvori)} (${c.tempoTucuvori || '-'})</p>
+                    </div>
+                </div>
+
                 <div style="margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
                     <h3 style="color: #760d0d; font-size: 12px; margin-bottom: 6px; text-transform: uppercase;">1. Dados Pessoais</h3>
                     <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
                         <tr>
-                            <td style="padding: 3px 0;"><strong>Nome Completo:</strong> ${c.nomeCompleto || '-'}</td>
                             <td style="padding: 3px 0;"><strong>Data Nascimento:</strong> ${formatarData(c.dataNascimento)}</td>
-                        </tr>
-                        <tr>
                             <td style="padding: 3px 0;"><strong>Idade / Faixa Etária:</strong> ${c.idade || '-'} (${c.faixaEtaria || '-'})</td>
-                            <td style="padding: 3px 0;"><strong>Entrada na Casa:</strong> ${formatarData(c.dataEntradaTucuvori)} (${c.tempoTucuvori || '-'})</td>
                         </tr>
                         <tr>
                             <td style="padding: 3px 0;"><strong>Sexo Biológico:</strong> ${c.sexoBiologico || '-'}</td>
@@ -885,25 +1064,25 @@
                     </table>
                 </div>
 
-                <!-- CONTATO EMERGÊNCIA -->
                 <div style="margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
                     <h3 style="color: #760d0d; font-size: 12px; margin-bottom: 6px; text-transform: uppercase;">Contato de Emergência</h3>
                     <p style="margin: 2px 0;"><strong>Nome:</strong> ${e.nome || '-'} | <strong>Parentesco:</strong> ${e.parentesco || '-'} | <strong>Telefone:</strong> ${e.telefone || '-'}</p>
                 </div>
 
-                <!-- DOCUMENTOS E ENDEREÇO -->
                 <div style="margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
                     <h3 style="color: #760d0d; font-size: 12px; margin-bottom: 6px; text-transform: uppercase;">Documentos & Endereço</h3>
-                    <p style="margin: 2px 0;"><strong>RG:</strong> ${d.rg || '-'} | <strong>CPF:</strong> ${d.cpf || '-'}</p>
                     <p style="margin: 2px 0;"><strong>Endereço:</strong> ${end.rua || ''}, ${end.numero || ''} - ${end.bairro || ''}, ${end.cidade || ''}/${end.uf || ''} (CEP: ${end.cep || ''})</p>
-                    <p style="margin-top: 4px; font-size: 10px; color: #555;">
-                        ${d.rgFrente ? `• Link RG Frente: ${d.rgFrente}<br>` : ''}
-                        ${d.rgVerso ? `• Link RG Verso: ${d.rgVerso}<br>` : ''}
-                        ${d.cpfFoto ? `• Link Foto CPF: ${d.cpfFoto}` : ''}
-                    </p>
+                    
+                    <div style="margin-top: 10px;">
+                        <strong>Imagens dos Documentos:</strong>
+                        <div style="display: flex; gap: 10px; margin-top: 5px; flex-wrap: wrap;">
+                            ${d.rgFrente ? `<div style="text-align: center;"><img src="${rgFrenteImg}" style="width: 140px; height: 90px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px;"><br><span style="font-size: 9px;">RG Frente</span></div>` : ''}
+                            ${d.rgVerso ? `<div style="text-align: center;"><img src="${rgVersoImg}" style="width: 140px; height: 90px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px;"><br><span style="font-size: 9px;">RG Verso</span></div>` : ''}
+                            ${d.cpfFoto ? `<div style="text-align: center;"><img src="${cpfFotoImg}" style="width: 140px; height: 90px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px;"><br><span style="font-size: 9px;">Foto CPF</span></div>` : ''}
+                        </div>
+                    </div>
                 </div>
 
-                <!-- 2. SAÚDE -->
                 <div style="margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
                     <h3 style="color: #760d0d; font-size: 12px; margin-bottom: 6px; text-transform: uppercase;">2. Ficha de Saúde</h3>
                     <table style="width: 100%; border-collapse: collapse; font-size: 10px; line-height: 1.5;">
@@ -952,7 +1131,6 @@
                     </div>
                 </div>
 
-                <!-- 3. ESPIRITUAL -->
                 <div style="margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
                     <h3 style="color: #760d0d; font-size: 12px; margin-bottom: 6px; text-transform: uppercase;">3. Informações Espirituais</h3>
                     <p style="margin: 2px 0;"><strong>Batizado Umbanda:</strong> ${esp.batizadoUmbanda || 'Não'} ${esp.batizadoUmbandaQuando ? `(${esp.batizadoUmbandaQuando})` : ''}</p>
@@ -986,7 +1164,6 @@
                     </table>
                 </div>
 
-                <!-- 4. OBSERVAÇÕES COMPLEMENTARES -->
                 <div style="margin-bottom: 10px;">
                     <h3 style="color: #760d0d; font-size: 12px; margin-bottom: 6px; text-transform: uppercase;">4. Observações Complementares</h3>
                     <p style="margin: 2px 0;"><strong>Mãe de Santo:</strong> ${comp.informacaoMaeSanto || '-'}</p>
@@ -1004,7 +1181,7 @@
                 margin: 8,
                 filename: nomeArquivo,
                 image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
+                html2canvas: { scale: 2 },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
