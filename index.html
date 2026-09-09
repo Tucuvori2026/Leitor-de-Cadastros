@@ -317,14 +317,26 @@
             width: 100%;
         }
 
-        .preview-imagem-edit {
-            width: 80px;
-            height: 80px;
-            object-fit: cover;
-            border-radius: 8px;
+        .input-upload-group {
+            display: flex;
+            gap: 5px;
+        }
+
+        .btn-upload-file {
+            background: #f0f0f0;
             border: 1px solid var(--borda);
-            margin-top: 5px;
-            background: #f8f8f8;
+            border-radius: 6px;
+            padding: 0 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .btn-upload-file:hover {
+            background: #e0e0e0;
         }
 
         .modal-rodape {
@@ -397,8 +409,9 @@
 <body>
 
     <header>
-        <h1>Painel de Cadastros</h1>
-        <p>Templo de Umbanda Caboclo Ubirajara e Vovó Rita (T.U.C.U.V.O.R.I.)</p>
+        <h1>Painel dos Cadastrados</h1>
+        <p>Templo de Umbanda Caboclo Ubirajara e Vovó Rita</p>
+        <p>T.U.C.U.V.O.R.I</p>
     </header>
 
     <div class="container">
@@ -439,38 +452,38 @@
 
         const PLACEHOLDER_FOTO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='%23cccccc'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
 
-        // Garante a formatação adequada para renderização da imagem
         function processarImagem(src) {
             if (!src) return PLACEHOLDER_FOTO;
+
+            if (typeof src === 'object') {
+                src = src.url || src.base64 || src.src || src.data || '';
+            }
+
+            if (typeof src !== 'string' || src.includes('[object Object]') || !src.trim()) {
+                return PLACEHOLDER_FOTO;
+            }
+
             src = src.trim();
+
             if (src.startsWith("data:image/") || src.startsWith("http://") || src.startsWith("https://")) {
                 return src;
             }
+
             return `data:image/jpeg;base64,${src}`;
         }
 
-        // Converte o arquivo selecionado no leitor para Base64
-        function converterParaBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = error => reject(error);
-            });
+        function obterAtributoCors(src) {
+            return (src && typeof src === 'string' && (src.startsWith("http://") || src.startsWith("https://"))) ? 'crossOrigin="anonymous"' : '';
         }
 
-        // Evento disparado na escolha de arquivo via upload
-        async function aoSelecionarArquivo(inputElement, previewId, hiddenInputId) {
+        function converterImagemParaBase64(inputElement, targetInputId) {
             const file = inputElement.files[0];
             if (file) {
-                try {
-                    const base64 = await converterParaBase64(file);
-                    document.getElementById(previewId).src = base64;
-                    document.getElementById(hiddenInputId).value = base64;
-                } catch (e) {
-                    console.error("Erro ao converter arquivo:", e);
-                    alert("Erro ao ler o arquivo selecionado.");
-                }
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById(targetInputId).value = e.target.result;
+                };
+                reader.readAsDataURL(file);
             }
         }
 
@@ -496,6 +509,7 @@
                 const docs = item.documentos || {};
                 const fotoPerfilRaw = item.fotoPerfilUrl || docs.fotoPerfil || item.fotoPerfil;
                 const fotoPerfil = processarImagem(fotoPerfilRaw);
+                const attrCors = obterAtributoCors(fotoPerfil);
 
                 const card = document.createElement("div");
                 card.className = "card-resumo";
@@ -506,7 +520,7 @@
                 };
 
                 card.innerHTML = `
-                    <img src="${fotoPerfil}" class="foto-thumb-card" alt="Foto de ${info.nomeCompleto || 'Perfil'}" onerror="this.src='${PLACEHOLDER_FOTO}'">
+                    <img src="${fotoPerfil}" class="foto-thumb-card" alt="Foto de ${info.nomeCompleto || 'Perfil'}" ${attrCors} onerror="this.src='${PLACEHOLDER_FOTO}'">
                     <div class="card-conteudo">
                         <span class="badge-id">${item.numeroCadastro || 'S/N'}</span>
                         <h3>${info.nomeCompleto || 'Nome não informado'}</h3>
@@ -563,27 +577,30 @@
 
             const fotoPerfilRaw = item.fotoPerfilUrl || d.fotoPerfil || item.fotoPerfil;
             const fotoPerfil = processarImagem(fotoPerfilRaw);
+            const attrCorsFoto = obterAtributoCors(fotoPerfil);
 
             let html = '';
 
             if (modoEdicao) {
-                const rgFrenteImg = processarImagem(d.rgFrente);
-                const rgVersoImg = processarImagem(d.rgVerso);
-                const cpfFotoImg = processarImagem(d.cpfFoto);
+                const valFotoPerfil = typeof fotoPerfilRaw === 'object' ? JSON.stringify(fotoPerfilRaw) : (fotoPerfilRaw || '');
+                const valRgFrente = typeof d.rgFrente === 'object' ? JSON.stringify(d.rgFrente) : (d.rgFrente || '');
+                const valRgVerso = typeof d.rgVerso === 'object' ? JSON.stringify(d.rgVerso) : (d.rgVerso || '');
+                const valCpfFoto = typeof d.cpfFoto === 'object' ? JSON.stringify(d.cpfFoto) : (d.cpfFoto || '');
 
                 html = `
                     <form id="formEdicao" onsubmit="salvarEdicao(event, '${id}')">
-                        <span class="badge-id">${item.numeroCadastro || 'S/N'}</span>
                         <h2 style="color: var(--vermelho); margin-bottom: 15px;">Editando Cadastro Completo</h2>
 
                         <div class="secao-detalhe">
-                            <h4>1. Dados Pessoais & Foto</h4>
+                            <h4>1. Identificação & Dados Pessoais</h4>
                             <div class="grid-detalhes">
-                                <div class="campo-edicao" style="grid-column: 1 / -1;">
-                                    <label>Upload da Foto de Perfil (Converte p/ Base64)</label>
-                                    <input type="file" accept="image/*" onchange="aoSelecionarArquivo(this, 'preview_fotoPerfil', 'edit_fotoPerfil')">
-                                    <input type="hidden" id="edit_fotoPerfil" value="${fotoPerfilRaw || ''}">
-                                    <img id="preview_fotoPerfil" src="${fotoPerfil}" class="preview-imagem-edit" onerror="this.src='${PLACEHOLDER_FOTO}'">
+                                <div class="campo-edicao"><label>N.º do Cadastro / RE</label><input type="text" id="edit_numeroCadastro" value="${item.numeroCadastro || ''}"></div>
+                                <div class="campo-edicao">
+                                    <label>Foto Perfil (Base64 ou URL)</label>
+                                    <div class="input-upload-group">
+                                        <input type="text" id="edit_fotoPerfil" value="${valFotoPerfil}">
+                                        <label class="btn-upload-file" title="Upload Imagem">📁<input type="file" accept="image/*" style="display:none;" onchange="converterImagemParaBase64(this, 'edit_fotoPerfil')"></label>
+                                    </div>
                                 </div>
                                 <div class="campo-edicao"><label>Nome Completo</label><input type="text" id="edit_nomeCompleto" value="${c.nomeCompleto || ''}"></div>
                                 <div class="campo-edicao"><label>Data Nascimento</label><input type="date" id="edit_dataNascimento" value="${c.dataNascimento || ''}"></div>
@@ -621,24 +638,27 @@
                                 <div class="campo-edicao"><label>UF</label><input type="text" id="edit_uf" value="${end.uf || ''}"></div>
                                 <div class="campo-edicao"><label>CEP</label><input type="text" id="edit_cep" value="${end.cep || ''}"></div>
                             </div>
-                            <div class="grid-detalhes" style="margin-top: 15px;">
+                            <div class="grid-detalhes" style="margin-top: 10px;">
                                 <div class="campo-edicao">
-                                    <label>Upload RG Frente</label>
-                                    <input type="file" accept="image/*" onchange="aoSelecionarArquivo(this, 'preview_rgFrente', 'edit_rgFrente')">
-                                    <input type="hidden" id="edit_rgFrente" value="${d.rgFrente || ''}">
-                                    <img id="preview_rgFrente" src="${rgFrenteImg}" class="preview-imagem-edit" onerror="this.src='${PLACEHOLDER_FOTO}'">
+                                    <label>RG Frente (Base64 ou URL)</label>
+                                    <div class="input-upload-group">
+                                        <input type="text" id="edit_rgFrente" value="${valRgFrente}">
+                                        <label class="btn-upload-file" title="Upload Imagem">📁<input type="file" accept="image/*" style="display:none;" onchange="converterImagemParaBase64(this, 'edit_rgFrente')"></label>
+                                    </div>
                                 </div>
                                 <div class="campo-edicao">
-                                    <label>Upload RG Verso</label>
-                                    <input type="file" accept="image/*" onchange="aoSelecionarArquivo(this, 'preview_rgVerso', 'edit_rgVerso')">
-                                    <input type="hidden" id="edit_rgVerso" value="${d.rgVerso || ''}">
-                                    <img id="preview_rgVerso" src="${rgVersoImg}" class="preview-imagem-edit" onerror="this.src='${PLACEHOLDER_FOTO}'">
+                                    <label>RG Verso (Base64 ou URL)</label>
+                                    <div class="input-upload-group">
+                                        <input type="text" id="edit_rgVerso" value="${valRgVerso}">
+                                        <label class="btn-upload-file" title="Upload Imagem">📁<input type="file" accept="image/*" style="display:none;" onchange="converterImagemParaBase64(this, 'edit_rgVerso')"></label>
+                                    </div>
                                 </div>
                                 <div class="campo-edicao">
-                                    <label>Upload CPF Foto</label>
-                                    <input type="file" accept="image/*" onchange="aoSelecionarArquivo(this, 'preview_cpfFoto', 'edit_cpfFoto')">
-                                    <input type="hidden" id="edit_cpfFoto" value="${d.cpfFoto || ''}">
-                                    <img id="preview_cpfFoto" src="${cpfFotoImg}" class="preview-imagem-edit" onerror="this.src='${PLACEHOLDER_FOTO}'">
+                                    <label>CPF Foto (Base64 ou URL)</label>
+                                    <div class="input-upload-group">
+                                        <input type="text" id="edit_cpfFoto" value="${valCpfFoto}">
+                                        <label class="btn-upload-file" title="Upload Imagem">📁<input type="file" accept="image/*" style="display:none;" onchange="converterImagemParaBase64(this, 'edit_cpfFoto')"></label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -750,6 +770,10 @@
                 const rgVersoImg = processarImagem(d.rgVerso);
                 const cpfFotoImg = processarImagem(d.cpfFoto);
 
+                const temRgFrenteValido = rgFrenteImg !== PLACEHOLDER_FOTO;
+                const temRgVersoValido = rgVersoImg !== PLACEHOLDER_FOTO;
+                const temCpfFotoValido = cpfFotoImg !== PLACEHOLDER_FOTO;
+
                 html = `
                     <div class="cabecalho-impressao" id="cabecalhoPdf">
                         <h2>Templo de Umbanda Caboclo Ubirajara e Vovó Rita</h2>
@@ -757,7 +781,7 @@
                     </div>
 
                     <div class="cabecalho-perfil">
-                        <img src="${fotoPerfil}" class="foto-perfil-modal" alt="Foto de Perfil" onerror="this.src='${PLACEHOLDER_FOTO}'">
+                        <img src="${fotoPerfil}" class="foto-perfil-modal" alt="Foto de Perfil" ${attrCorsFoto} onerror="this.src='${PLACEHOLDER_FOTO}'">
                         <div>
                             <span class="badge-id">${item.numeroCadastro || 'S/N'}</span>
                             <h2 style="color: var(--vermelho); margin-top: 4px;">${c.nomeCompleto || 'Sem Nome'}</h2>
@@ -800,10 +824,10 @@
                         <div style="margin-top: 15px;">
                             <strong style="font-size: 11px; color: #555; text-transform: uppercase;">Imagens dos Documentos:</strong>
                             <div class="galeria-documentos">
-                                ${d.rgFrente ? `<a href="${rgFrenteImg}" target="_blank" class="card-doc-img"><img src="${rgFrenteImg}" alt="RG Frente"><span>📄 RG Frente</span></a>` : ''}
-                                ${d.rgVerso ? `<a href="${rgVersoImg}" target="_blank" class="card-doc-img"><img src="${rgVersoImg}" alt="RG Verso"><span>📄 RG Verso</span></a>` : ''}
-                                ${d.cpfFoto ? `<a href="${cpfFotoImg}" target="_blank" class="card-doc-img"><img src="${cpfFotoImg}" alt="CPF Foto"><span>📄 Foto CPF</span></a>` : ''}
-                                ${(!d.rgFrente && !d.rgVerso && !d.cpfFoto) ? '<p style="font-size:12px; color:#888;">Nenhum documento em imagem anexado.</p>' : ''}
+                                ${temRgFrenteValido ? `<a href="${rgFrenteImg}" target="_blank" class="card-doc-img"><img src="${rgFrenteImg}" alt="RG Frente" ${obterAtributoCors(rgFrenteImg)}><span>📄 RG Frente</span></a>` : ''}
+                                ${temRgVersoValido ? `<a href="${rgVersoImg}" target="_blank" class="card-doc-img"><img src="${rgVersoImg}" alt="RG Verso" ${obterAtributoCors(rgVersoImg)}><span>📄 RG Verso</span></a>` : ''}
+                                ${temCpfFotoValido ? `<a href="${cpfFotoImg}" target="_blank" class="card-doc-img"><img src="${cpfFotoImg}" alt="CPF Foto" ${obterAtributoCors(cpfFotoImg)}><span>📄 Foto CPF</span></a>` : ''}
+                                ${(!temRgFrenteValido && !temRgVersoValido && !temCpfFotoValido) ? '<p style="font-size:12px; color:#888;">Nenhum documento em imagem anexado.</p>' : ''}
                             </div>
                         </div>
                     </div>
@@ -894,6 +918,7 @@
             const fotoPerfil = document.getElementById("edit_fotoPerfil").value;
 
             const atualizacao = {
+                "numeroCadastro": document.getElementById("edit_numeroCadastro").value,
                 "fotoPerfilUrl": fotoPerfil,
                 "cadastro/nomeCompleto": document.getElementById("edit_nomeCompleto").value,
                 "cadastro/dataNascimento": document.getElementById("edit_dataNascimento").value,
@@ -1004,7 +1029,6 @@
             }
         }
 
-        // GERAR PDF SUPORTANDO BASE64
         function gerarPDF(id) {
             const item = todosCadastros[id];
             if (!item) return;
@@ -1024,6 +1048,10 @@
             const rgVersoImg = processarImagem(d.rgVerso);
             const cpfFotoImg = processarImagem(d.cpfFoto);
 
+            const temRgFrenteValido = rgFrenteImg !== PLACEHOLDER_FOTO;
+            const temRgVersoValido = rgVersoImg !== PLACEHOLDER_FOTO;
+            const temCpfFotoValido = cpfFotoImg !== PLACEHOLDER_FOTO;
+
             const containerPdf = document.createElement("div");
             containerPdf.style.padding = "20px";
             containerPdf.style.fontFamily = "Arial, sans-serif";
@@ -1038,7 +1066,7 @@
                 </div>
 
                 <div style="display: flex; gap: 15px; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 10px; align-items: center;">
-                    <img src="${fotoPerfil}" style="width: 80px; height: 80px; border-radius: 6px; object-fit: cover; border: 1px solid #ccc;">
+                    <img src="${fotoPerfil}" style="width: 80px; height: 80px; border-radius: 6px; object-fit: cover; border: 1px solid #ccc;" ${obterAtributoCors(fotoPerfil)}>
                     <div>
                         <h3 style="color: #760d0d; font-size: 14px; margin: 0;">${c.nomeCompleto || '-'}</h3>
                         <p style="margin: 3px 0;"><strong>CPF:</strong> ${d.cpf || '-'} | <strong>RG:</strong> ${d.rg || '-'}</p>
@@ -1076,9 +1104,9 @@
                     <div style="margin-top: 10px;">
                         <strong>Imagens dos Documentos:</strong>
                         <div style="display: flex; gap: 10px; margin-top: 5px; flex-wrap: wrap;">
-                            ${d.rgFrente ? `<div style="text-align: center;"><img src="${rgFrenteImg}" style="width: 140px; height: 90px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px;"><br><span style="font-size: 9px;">RG Frente</span></div>` : ''}
-                            ${d.rgVerso ? `<div style="text-align: center;"><img src="${rgVersoImg}" style="width: 140px; height: 90px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px;"><br><span style="font-size: 9px;">RG Verso</span></div>` : ''}
-                            ${d.cpfFoto ? `<div style="text-align: center;"><img src="${cpfFotoImg}" style="width: 140px; height: 90px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px;"><br><span style="font-size: 9px;">Foto CPF</span></div>` : ''}
+                            ${temRgFrenteValido ? `<div style="text-align: center;"><img src="${rgFrenteImg}" style="width: 140px; height: 90px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px;" ${obterAtributoCors(rgFrenteImg)}><br><span style="font-size: 9px;">RG Frente</span></div>` : ''}
+                            ${temRgVersoValido ? `<div style="text-align: center;"><img src="${rgVersoImg}" style="width: 140px; height: 90px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px;" ${obterAtributoCors(rgVersoImg)}><br><span style="font-size: 9px;">RG Verso</span></div>` : ''}
+                            ${temCpfFotoValido ? `<div style="text-align: center;"><img src="${cpfFotoImg}" style="width: 140px; height: 90px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px;" ${obterAtributoCors(cpfFotoImg)}><br><span style="font-size: 9px;">Foto CPF</span></div>` : ''}
                         </div>
                     </div>
                 </div>
@@ -1181,7 +1209,7 @@
                 margin: 8,
                 filename: nomeArquivo,
                 image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
+                html2canvas: { scale: 2, useCORS: true, allowTaint: true },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
